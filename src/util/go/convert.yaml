@@ -7,3 +7,23 @@ packages:
   mapping:
     - from: com.raeiou.(*)
       to: raoqu.cc/$1
+types:
+  primitive:
+    - type: string
+    - type: int
+    - type: int64
+    - type: map
+    - type: "[]"
+  mapping:
+    - from: String
+      to: string
+    - from: Object
+      to: interface{}
+    - from: long
+      to: int64
+    - from: java.util.Array<*>
+      to: []$1
+    - from: Exception
+      to: util.CustomError
+      dependencies: 
+        - package: raoqu.cc/think/util

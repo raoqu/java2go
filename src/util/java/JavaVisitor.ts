@@ -1,10 +1,12 @@
 //ts-nocheck
 import { Java8ParserVisitor } from '@/parser/Java8ParserVisitor'
 import { AbstractParseTreeVisitor } from "antlr4ts/tree"
-import { ExpressionValue, AType, AstBase, AstPackage, AstImport, AstType, AstAnnotation, } from './AstTypes'
+import { ExpressionValue, AType, AstBase, AstPackage, AstImport, AstClass, AstType, AstAnnotation, AstInterface, AstEnum, } from './AstTypes'
 import * as parser from "@/parser/Java8Parser";
 
 export default class JavaVisitor extends AbstractParseTreeVisitor<ExpressionValue> implements Java8ParserVisitor<ExpressionValue> {
+
+	private packageName?: string
 
 	protected defaultResult(): string {
 		console.log('Method not implemented.')
@@ -39,7 +41,9 @@ export default class JavaVisitor extends AbstractParseTreeVisitor<ExpressionValu
 	visitPackageName(ctx: parser.PackageNameContext): string {
 		const pkg = ctx.packageName()?.text ?? ""
 		const name = ctx.Identifier()?.text ?? ""
-		return pkg + "." + name
+
+		this.packageName = pkg + "." + name
+		return this.packageName
 	}
 
 	// typeName
@@ -60,9 +64,13 @@ export default class JavaVisitor extends AbstractParseTreeVisitor<ExpressionValu
 		const packageDeclaration = ctx.packageDeclaration()
 		packageDeclaration && arr.push(this.visit(packageDeclaration) as AstPackage)
 		// importDeclaration
-		const importDecl = ctx.importDeclaration()
-		const imports = importDecl ? importDecl.map(imp => this.visit(imp) as AstImport) : []
+		const importDecls = ctx.importDeclaration()
+		const imports = importDecls ? importDecls.map(imp => this.visit(imp) as AstImport) : []
 		arr = [...arr, ...imports]
+		// typeDeclaration
+		const typeDecls = ctx.typeDeclaration()
+		const types = typeDecls ? typeDecls.map(imp => this.visit(imp) as AstBase).filter(a => a.type != AType._DISCARD) : []
+		arr = [...arr, ...types]
 
 		return arr
 	}
@@ -85,16 +93,16 @@ export default class JavaVisitor extends AbstractParseTreeVisitor<ExpressionValu
 		// let arr:AstImport[] = []
 
 		const stid = ctx.singleTypeImportDeclaration()
-		if (stid) return  this.visit(stid) as AstImport
+		if (stid) return this.visit(stid) as AstImport
 
 		return {
 			type: AType.IMPORT,
 			name: 'UNKNOWN'
 		}
 	}
-	
+
 	// singleTypeImportDeclaration
-	visitSingleTypeImportDeclaration (ctx: parser.SingleTypeImportDeclarationContext) :AstImport{
+	visitSingleTypeImportDeclaration(ctx: parser.SingleTypeImportDeclarationContext): AstImport {
 		return {
 			type: AType.IMPORT,
 			name: this.visit(ctx.typeName()) as string,
@@ -104,9 +112,36 @@ export default class JavaVisitor extends AbstractParseTreeVisitor<ExpressionValu
 	//visitTypeImportOnDemandDeclaration (ctx: parser.TypeImportOnDemandDeclarationContext) {
 	//visitSingleStaticImportDeclaration (ctx: parser.SingleStaticImportDeclarationContext) {
 	//visitStaticImportOnDemandDeclaration (ctx: parser.StaticImportOnDemandDeclarationContext) {
-	//visitTypeDeclaration (ctx: parser.TypeDeclarationContext) {
-	//visitClassDeclaration (ctx: parser.ClassDeclarationContext) {
-	//visitNormalClassDeclaration (ctx: parser.NormalClassDeclarationContext) {
+	visitTypeDeclaration(ctx: parser.TypeDeclarationContext): AstBase {
+		let arr: AstBase[] = []
+		const clsDecl = ctx.classDeclaration()
+		if (clsDecl) return this.visit(clsDecl) as AstBase
+
+		const ifDecl = ctx.interfaceDeclaration()
+		if (ifDecl) return this.visit(ifDecl) as AstBase
+
+		return { type: AType._DISCARD }
+	}
+
+	visitClassDeclaration(ctx: parser.ClassDeclarationContext): AstBase {
+		const normalClassDecl = ctx.normalClassDeclaration()
+		if (normalClassDecl) return this.visit(normalClassDecl) as AstClass
+
+		const enumDecl = ctx.enumDeclaration()
+		if ( enumDecl) return this.visit(enumDecl) as AstEnum
+
+		return {
+			type: AType._DISCARD
+		}
+	}
+
+	visitNormalClassDeclaration(ctx: parser.NormalClassDeclarationContext): AstClass {
+		return {
+			type: AType.CLASS,
+			packageName: this.packageName,
+			name: ctx.Identifier().text,
+		}
+	}
 	//visitClassModifier (ctx: parser.ClassModifierContext) {
 	//visitTypeParameters (ctx: parser.TypeParametersContext) {
 	//visitTypeParameterList (ctx: parser.TypeParameterListContext) {
@@ -157,7 +192,15 @@ export default class JavaVisitor extends AbstractParseTreeVisitor<ExpressionValu
 	//visitSimpleTypeName (ctx: parser.SimpleTypeNameContext) {
 	//visitConstructorBody (ctx: parser.ConstructorBodyContext) {
 	//visitExplicitConstructorInvocation (ctx: parser.ExplicitConstructorInvocationContext) {
-	//visitEnumDeclaration (ctx: parser.EnumDeclarationContext) {
+
+	visitEnumDeclaration (ctx: parser.EnumDeclarationContext) :AstEnum {
+		return {
+			type: AType.ENUM,
+			packageName: this.packageName,
+			name: ctx.Identifier().text
+		}
+	}
+
 	//visitEnumBody (ctx: parser.EnumBodyContext) {
 	//visitEnumConstantList (ctx: parser.EnumConstantListContext) {
 	//visitEnumConstant (ctx: parser.EnumConstantContext) {
