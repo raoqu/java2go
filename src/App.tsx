@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { useEffect, useRef, useState } from 'react'
 import { Button, Space } from 'antd'
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
@@ -11,9 +9,9 @@ import './App.css'
 
 function App() {
   const monaco = useMonaco();
-  const javaEditorRef = useRef(null)
-  const [java, setJava] = useState('package com.raoqu.main')
-  const [diffJava, setDiffJava] = useState('package com.raoqu.main')
+  const javaEditorRef = useRef<any>(null)
+  const [java, setJava] = useState('package com.raoqu.main;')
+  const [diffJava, setDiffJava] = useState('package com.raoqu.main;')
   const [diffGo, setDiffGo] = useState('package main')
   const [diff, setDiff] = useState(false)
   const [diffEditor, setDiffEditor] = useState<MonacoDiffEditor | null>(null)
@@ -22,27 +20,29 @@ function App() {
     // monaco?.languages.typescript.javascriptDefaults.setEagerModelSync(true);
   }, [monaco])
 
-  function handleJavaEditorDidMount(editor: any, monaco: any) {
+  function handleJavaEditorDidMount(editor: any, _monaco: any) {
     javaEditorRef.current = editor
   }
 
   function handleGenerate() {
-    const val = javaEditorRef.current?.getValue()
+    if ( ! javaEditorRef.current ) return
+
+    const val = javaEditorRef.current.getValue()
     setDiff(!diff)
     diffEditor?.getOriginalEditor().setValue(val)
 
     // remote generate
-    WSS('ws://127.0.0.1:1366/ws', val, {
-      onError: null,
-      onClose: () => console.log('closed'),
-      onOpen: null,
-      onMessage: onJava2Go
-    })
+    // WSS('ws://127.0.0.1:1366/ws', val, {
+    //   onError: null,
+    //   onClose: () => console.log('closed'),
+    //   onOpen: null,
+    //   onMessage: onJava2Go
+    // })
     // local generate
-    // diffEditor?.getModifiedEditor().setValue(Java2Go(val))
+    diffEditor?.getModifiedEditor().setValue(Java2Go(val))
   }
 
-  function handleDiffEditorDidMount(editor: MonacoDiffEditor, monaco: Monaco) {
+  function handleDiffEditorDidMount(editor: MonacoDiffEditor, _monaco: Monaco) {
     setDiffEditor(editor)
   }
 

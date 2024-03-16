@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "lang": "antlr4ts -no-listener src/parser/Java8Lexer.g4 && antlr4ts -visitor -no-listener src/parser/Java8Parser.g4"
   },
   "dependencies": {
     "@ant-design/icons": "^5.3.0",
@@ -15,6 +16,7 @@
     "@vime/core": "^5.4.1",
     "@vime/react": "^5.4.1",
     "antd": "^5.14.2",
+    "antlr4ts": "0.5.0-alpha.4",
     "axios": "^1.6.7",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
@@ -27,11 +29,13 @@
     "@typescript-eslint/eslint-plugin": "^7.0.2",
     "@typescript-eslint/parser": "^7.0.2",
     "@vitejs/plugin-react-swc": "^3.5.0",
+    "antlr4ts-cli": "0.5.0-alpha.4",
     "eslint": "^8.56.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.5",
     "typescript": "^5.2.2",
     "vite": "^5.1.4",
-    "vite-plugin-mock": "^3.0.1"
+    "vite-plugin-mock": "^3.0.1",
+    "vite-plugin-node-polyfills": "^0.21.0"
   }
 }
