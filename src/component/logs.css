@@ -1,0 +1,6 @@
+.output_log_container {
+    max-height: 350px; /* 控制组件高度 */
+    overflow-y: scroll; /* 添加滚动条 */
+    border: 1px solid rgba(56, 55, 55, 0.669);
+    padding: 5px;
+  }
