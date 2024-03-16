@@ -1,23 +1,16 @@
 //ts-nocheck
-import {Java8ParserVisitor} from '@/parser/Java8ParserVisitor'
+import { Java8ParserVisitor } from '@/parser/Java8ParserVisitor'
 import { AbstractParseTreeVisitor } from "antlr4ts/tree"
-import { ExpressionValue, AstBase, AstPackage, AstAnnotation } from './AstTypes'
+import { ExpressionValue, AType, AstBase, AstPackage, AstImport, AstType, AstAnnotation, } from './AstTypes'
 import * as parser from "@/parser/Java8Parser";
 
 export default class JavaVisitor extends AbstractParseTreeVisitor<ExpressionValue> implements Java8ParserVisitor<ExpressionValue> {
-        
-    protected defaultResult(): string {
-        console.log('Method not implemented.')
-        return ""
-    }
 
-	visitPackageDeclaration (ctx: parser.PackageDeclarationContext) :AstPackage|undefined {
-        const result = this.visit(ctx.packageName())
-        return result || {
-            type: 'package',
-            packageName : result as string
-        }
-    };
+	protected defaultResult(): string {
+		console.log('Method not implemented.')
+		return ""
+	}
+
 	//visitLiteral (ctx: parser.LiteralContext) {
 	//visitPrimitiveType (ctx: parser.PrimitiveTypeContext) {
 	//visitNumericType (ctx: parser.NumericTypeContext) {
@@ -43,29 +36,71 @@ export default class JavaVisitor extends AbstractParseTreeVisitor<ExpressionValu
 	//visitTypeArgument (ctx: parser.TypeArgumentContext) {
 	//visitWildcard (ctx: parser.WildcardContext) {
 	//visitWildcardBounds (ctx: parser.WildcardBoundsContext) {
-	visitPackageName (ctx: parser.PackageNameContext) :string {
-        const pkg = ctx.packageName()?.text ?? "";
-        const name = ctx.Identifier()?.text ?? ""
-        return pkg + "." + name
-    }
-	//visitTypeName (ctx: parser.TypeNameContext) {
+	visitPackageName(ctx: parser.PackageNameContext): string {
+		const pkg = ctx.packageName()?.text ?? ""
+		const name = ctx.Identifier()?.text ?? ""
+		return pkg + "." + name
+	}
+
+	// typeName
+	visitTypeName(ctx: parser.TypeNameContext): string {
+		const pkg = ctx.packageOrTypeName()?.text ?? ""
+		const name = ctx.Identifier()?.text ?? ""
+		return pkg + "." + name
+	}
 	//visitPackageOrTypeName (ctx: parser.PackageOrTypeNameContext) {
 	//visitExpressionName (ctx: parser.ExpressionNameContext) {
 	//visitMethodName (ctx: parser.MethodNameContext) {
 	//visitAmbiguousName (ctx: parser.AmbiguousNameContext) {
-	visitCompilationUnit (ctx: parser.CompilationUnitContext) :AstBase[]{
-        const arr = []
-        const pacakageDeclaration = ctx.packageDeclaration()
 
-        pacakageDeclaration && arr.push(this.visit(pacakageDeclaration) as AstPackage)
-        return arr
-    }
-	//visitPackageDeclaration (ctx: parser.PackageDeclarationContext) {
-	visitPackageModifier (ctx: parser.PackageModifierContext) : AstAnnotation[] {
-        return []
-    }
-	//visitImportDeclaration (ctx: parser.ImportDeclarationContext) {
-	//visitSingleTypeImportDeclaration (ctx: parser.SingleTypeImportDeclarationContext) {
+	// compilationUnit
+	visitCompilationUnit(ctx: parser.CompilationUnitContext): AstBase[] {
+		let arr = []
+		// packageDeclaration
+		const packageDeclaration = ctx.packageDeclaration()
+		packageDeclaration && arr.push(this.visit(packageDeclaration) as AstPackage)
+		// importDeclaration
+		const importDecl = ctx.importDeclaration()
+		const imports = importDecl ? importDecl.map(imp => this.visit(imp) as AstImport) : []
+		arr = [...arr, ...imports]
+
+		return arr
+	}
+
+	// packageDeclaration
+	visitPackageDeclaration(ctx: parser.PackageDeclarationContext): AstPackage {
+		const result = this.visit(ctx.packageName())
+		return {
+			type: AType.PACKAGE,
+			packageName: result as string
+		}
+	};
+
+	// visitPackageModifier (ctx: parser.PackageModifierContext) : AstAnnotation[] {
+	//     return []
+	// }
+
+	// importDeclaration
+	visitImportDeclaration(ctx: parser.ImportDeclarationContext): AstImport {
+		// let arr:AstImport[] = []
+
+		const stid = ctx.singleTypeImportDeclaration()
+		if (stid) return  this.visit(stid) as AstImport
+
+		return {
+			type: AType.IMPORT,
+			name: 'UNKNOWN'
+		}
+	}
+	
+	// singleTypeImportDeclaration
+	visitSingleTypeImportDeclaration (ctx: parser.SingleTypeImportDeclarationContext) :AstImport{
+		return {
+			type: AType.IMPORT,
+			name: this.visit(ctx.typeName()) as string,
+		}
+	}
+
 	//visitTypeImportOnDemandDeclaration (ctx: parser.TypeImportOnDemandDeclarationContext) {
 	//visitSingleStaticImportDeclaration (ctx: parser.SingleStaticImportDeclarationContext) {
 	//visitStaticImportOnDemandDeclaration (ctx: parser.StaticImportOnDemandDeclarationContext) {

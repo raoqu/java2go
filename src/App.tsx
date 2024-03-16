@@ -4,14 +4,15 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import Editor, { Monaco, useMonaco, DiffEditor, MonacoDiffEditor } from '@monaco-editor/react';
 import Java2Go from './util/java2go';
 import WSS, { WSProcessor, WSMessage } from './util/webscoket';
+import {DEFAULT_JAVA} from '@/util/DefaultJava'
 
 import './App.css'
 
 function App() {
   const monaco = useMonaco();
   const javaEditorRef = useRef<any>(null)
-  const [java, setJava] = useState('package com.raoqu.main;')
-  const [diffJava, setDiffJava] = useState('package com.raoqu.main;')
+  const [java, setJava] = useState(DEFAULT_JAVA)
+  const [diffJava, setDiffJava] = useState(DEFAULT_JAVA)
   const [diffGo, setDiffGo] = useState('package main')
   const [diff, setDiff] = useState(false)
   const [diffEditor, setDiffEditor] = useState<MonacoDiffEditor | null>(null)
