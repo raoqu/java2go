@@ -2,23 +2,26 @@ export enum AType {
   PACKAGE = 'package',
   IMPORT = 'import',
   CLASS = 'class',
+  FIELD = 'field',
   INTERFACE = 'interface',
   ENUM = 'enum',
-  _DISCARD = 'discard',
+  _INVALID = '__Invalide__',
+  _IGNORE = '__Ignore__',
+  TYPE = 'type',
+  TYPE_ARGUMENT = 'type_argument',
+  VARAIBLE = 'variable',
 }
 
 export type ExpressionValue =
   AstBase
   | AstBase[]
-  | AstPackage
-  | AstImport
   | string
   | any
   ;
 
 export interface AstBase {
   type: string
-  chidren?: AstBase[]
+  children?: AstBase[]
 }
 
 // package
@@ -57,4 +60,26 @@ export interface AstAnnotation {
 export interface AstType extends AstBase {
   packageName?: string
   name: string
+}
+
+export interface AstField extends AstBase {
+  packageName?: string
+  isPublic: boolean
+  name: string
+}
+
+export interface AstVariable extends AstBase {
+  name: string
+  defaultValue?: any
+  isArray: boolean
+  isField: boolean
+  vtype?: AstBase
+}
+
+export const AST_NODE_IGNORE: AstBase = {
+  type: AType._IGNORE
+}
+
+export const AST_NODE_INVALID: AstBase = {
+  type: AType._INVALID
 }

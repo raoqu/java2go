@@ -14,12 +14,13 @@ module.exports = {
       'warn',
       { allowConstantExport: true },
     ],
-    "@typescript-eslint/no-unused-vars": "off" ,
+    "@typescript-eslint/no-unused-vars": "off",
     'no-mixed-spaces-and-tabs': 'off',
-    'no-extra-semi':'off',
+    'no-extra-semi': 'off',
     'no-redeclare': 'off',
     '@typescript-eslint/no-explicit-any': 'off',
     'prefer-const': 'off',
     'no-empty': 'off',
+    '@typescript-eslint/no-this-alias': 'off',
   }
 }
