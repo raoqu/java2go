@@ -280,7 +280,7 @@ classDeclaration
     ;
 
 normalClassDeclaration
-    : classModifier* 'class' Identifier typeParameters? superclass? superinterfaces? classBody
+    : comments? classModifier* 'class' Identifier typeParameters? superclass? superinterfaces? classBody
     ;
 
 classModifier
@@ -427,7 +427,7 @@ unannArrayType
     ;
 
 methodDeclaration
-    : methodModifier* methodHeader methodBody
+    : comments? methodModifier* methodHeader methodBody
     ;
 
 methodModifier
@@ -726,7 +726,7 @@ blockStatements
 blockStatement
     : localVariableDeclarationStatement
     | classDeclaration
-    | statement
+    | comments? statement
     ;
 
 localVariableDeclarationStatement
@@ -1205,7 +1205,7 @@ leftHandSide
 assignmentOperator
     : '='
     | '*='
-    | '/='
+    | '/='x
     | '%='
     | '+='
     | '-='
@@ -1332,4 +1332,8 @@ castExpression
     : '(' primitiveType ')' unaryExpression
     | '(' referenceType additionalBound* ')' unaryExpressionNotPlusMinus
     | '(' referenceType additionalBound* ')' lambdaExpression
+    ;
+
+comments
+    : ( COMMENT | LINE_COMMENT ) *
     ;

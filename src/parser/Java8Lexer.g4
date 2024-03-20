@@ -972,6 +972,6 @@ ELLIPSIS : '...';
 
 WS: [ \t\r\n\u000C]+ -> skip;
 
-COMMENT: '/*' .*? '*/' -> skip;
+COMMENT: '/*' .*? '*/';
 
-LINE_COMMENT: '//' ~[\r\n]* -> skip;
+LINE_COMMENT: '//' ~[\r\n]*;

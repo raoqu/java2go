@@ -1,62 +1,63 @@
-import { ExpressionValue, AType, AstBase, AstPackage, AstImport, AstType, AstClass } from './java/AstTypes'
+import { L } from '@/converter/GoConverter'
+import { AstBase } from './java/AstTypes'
 import { ParseJava } from './java/JavaParser'
+import CommentNode from './java/types/Comment'
+import TimeCost from './TimeCost'
 
 const Java2Go = (java: string): string => {
+    const costParse = new TimeCost('PARSE')
     const javaAst: AstBase[] = ParseJava(java)
-    return javaAst2Go(javaAst)
-}
+    costParse.cost()
+    console.log('parse result:', javaAst)
 
-function javaAst2Go(javaAst: AstBase[]): string {
+    const costConvert = new TimeCost('CONVERT')
+    const converter = new Java2GoConveter()
     const lines = javaAst.reduce<string[]>((acc, ast) => {
-        return [...acc, ...ast2Go(ast)];
+        return [...acc, ...converter.convert(ast)];
     }, []);
+    costConvert.cost()
     return lines.join('\n')
 }
 
-function ast2Go(ast: AstBase): string[] {
-    switch (ast.type) {
-        case AType.PACKAGE:
-            return goPackageCode(ast as AstPackage)
-        case AType.IMPORT:
-            return goImportCode(ast as AstImport)
-        case AType.CLASS:
-            return goClassCode(ast as AstClass)
-        default:
-            console.log(ast)
-            console.log('ast2Go NOT IMPLEMENTED:', ast.type)
-            break;
+class Java2GoConveter {
+
+    public convert(ast: AstBase): string[] {
+        if (ast.convert) {
+            const result = ast.convert()
+            if (typeof result == 'string') {
+                return [result]
+            }
+            if (Array.isArray(result)) {
+                return result
+            }
+        }
+        console.log('ast2Go NOT IMPLEMENTED:', ast)
+
+        return []
+        // switch (ast.type) {
+        //     case AType.PACKAGE:
+        //         return this.package(ast as AstPackage)
+        //     case AType.IMPORT:
+        //         return this.import(ast as AstImport)
+        //     case AType.CLASS:
+        //         return this.class(ast as AstClass)
+        //     case AType.VARIABLE:
+        //         return this.variable(ast as AstVariable)
+        //     case AType.METHOD:
+        //         return this.method(ast as MethodNode)
+        //     default:
+        //         break;
+        // }
     }
-    return []
-}
 
-function goPackageCode(ast: AstPackage): string[] {
-    return L('package ' + dotSuffix(ast.packageName), '')
-}
 
-function goImportCode(imp: AstImport): string[] {
-    return L('import "' + imp.name + '"')
-}
-
-function goClassCode(cls: AstClass): string[] {
-    return L('', 'type ' + cls.name + ' struct {', '}')
-}
-
-function L(...str: string[]): string[] {
-    return str
-}
-
-function dotSuffix(pakcageName: string): string {
-    const parts = pakcageName.split('.')
-    return parts[parts.length - 1]
-}
-
-function dotPrefix(pakcageName: string): string {
-    const parts = pakcageName.split('.')
-    let arr: string[] = []
-    for (let i = 0; i < parts.length - 1; i++) {
-        arr.push(parts[i])
+    public comments(cmts: CommentNode[]): string[] {
+        return this.L(...cmts.map(c => c.text))
     }
-    return arr.join('.')
+
+    L(...str: string[]): string[] {
+        return str
+    }
 }
 
 export default Java2Go;

@@ -1,5 +1,6 @@
 import { AType, AstBase, AstType } from '../AstTypes'
 import { AstNodes } from "../AstNodes";
+import GoConverter, { C } from '@/converter/GoConverter';
 
 export enum TypeCategory {
     ClassOrInterface = 0,
@@ -12,6 +13,10 @@ export class TypeArgument implements AstBase {
     vtype?: AstType
     extends?: AstType
     super?: AstType
+
+    name(): string {
+        return C.mappingType(this.vtype ? this.vtype?.name : '')
+    }
 }
 
 export default class TypeNode implements AstType {
@@ -22,6 +27,7 @@ export default class TypeNode implements AstType {
     category: TypeCategory = TypeCategory.ClassOrInterface
     isGeneric: boolean = false
     typeArguments?: TypeArgument[] // arguments for generic type //@see TypeArgument
+    multiple?: boolean // method parameter only
 
     constructor(name: string) {
         this.name = name

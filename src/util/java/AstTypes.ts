@@ -9,7 +9,15 @@ export enum AType {
   _IGNORE = '__Ignore__',
   TYPE = 'type',
   TYPE_ARGUMENT = 'type_argument',
-  VARAIBLE = 'variable',
+  VARIABLE = 'variable',
+  METHOD = 'method',
+  ANNOTATION = 'annotation',
+  COMMENT = 'comment',
+  BLOCK = 'block',
+  STATEMENT = 'statement',
+  EXPRESSION = 'expression',
+  VALUE = 'value',
+  INVOCATION = '_invocation',
 }
 
 export type ExpressionValue =
@@ -22,16 +30,7 @@ export type ExpressionValue =
 export interface AstBase {
   type: string
   children?: AstBase[]
-}
-
-// package
-export interface AstPackage extends AstBase {
-  packageName: string
-}
-
-// import
-export interface AstImport extends AstBase {
-  name: string
+  convert?: () => any
 }
 
 // class
@@ -59,12 +58,6 @@ export interface AstAnnotation {
 
 export interface AstType extends AstBase {
   packageName?: string
-  name: string
-}
-
-export interface AstField extends AstBase {
-  packageName?: string
-  isPublic: boolean
   name: string
 }
 

@@ -1,20 +1,32 @@
 //ts-nocheck
 import { Java8ParserVisitor } from '@/parser/Java8ParserVisitor'
-import { AbstractParseTreeVisitor, ParseTree } from "antlr4ts/tree"
+import { AbstractParseTreeVisitor, ParseTree, TerminalNode } from "antlr4ts/tree"
 import {
-	ExpressionValue, AType, AstBase, AstPackage, AstImport, AstClass, AstVariable, AstAnnotation,
+	ExpressionValue, AType, AstBase, AstClass, AstVariable,
 	AST_NODE_INVALID, AST_NODE_IGNORE,
-	AstType,
 } from './AstTypes'
 import { AstNodes, astAppend } from './AstNodes'
 import * as parser from "@/parser/Java8Parser";
 import VariableNode from './types/Variable';
 import TypeNode, { TypeArgument, TypeCategory } from './types/Type';
 import Class from './types/Class';
+import MethodNode from './types/Method';
+import CommentNode from './types/Comment';
+import { BlockNode, BlockType } from './types/Block';
+import StatementNode, { StateType } from './types/Statement';
+import ExpressionNode from './types/Expression';
+import ExpressionAssignNode from './types/ExpressionAssign';
+import ClassNode from './types/Class';
+import ExpressionFieldAccess from './types/ExpressionFieldAccess';
+import PackageNode from './types/Package';
+import ImportNode from './types/Import';
+import InvocationNode from './Invocation';
 
 export default class JavaVisitor extends AbstractParseTreeVisitor<ExpressionValue> implements Java8ParserVisitor<ExpressionValue> {
 
 	private packageName?: string
+	private comments: AstBase[] = []
+	private classStack: AstBase[] = []
 
 	protected defaultResult(): string {
 		console.log('Method not implemented.')
@@ -22,6 +34,20 @@ export default class JavaVisitor extends AbstractParseTreeVisitor<ExpressionValu
 	}
 
 	/** ======================= generic parser ======================= */
+
+	private parseText(...contexts: (ParseTree | undefined)[]): string {
+		for (let i = 0; i < contexts.length; i++) {
+			const ctx = contexts[i]
+			if (ctx) {
+				// allows undefined result, continue to default invalid result
+				const result = ctx.text
+				if (result) {
+					return result
+				}
+			}
+		}
+		return ''
+	}
 
 	private parse(context: ParseTree | undefined): AstBase | undefined {
 		return context ? this.visit(context) : undefined
@@ -31,7 +57,11 @@ export default class JavaVisitor extends AbstractParseTreeVisitor<ExpressionValu
 		for (let i = 0; i < contexts.length; i++) {
 			const ctx = contexts[i]
 			if (ctx) {
-				return this.visit(ctx)
+				// allows undefined result, continue to default invalid result
+				const result = this.visit(ctx)
+				if (result) {
+					return result
+				}
 			}
 		}
 		console.log('NOT IMPLEMENTED', contexts)
@@ -51,16 +81,43 @@ export default class JavaVisitor extends AbstractParseTreeVisitor<ExpressionValu
 			if (Array.isArray(contexts)) {
 				return contexts.map(context => this.visit(context) as AstBase)
 			}
-			return [this.visit(contexts as any as ParseTree) as AstBase]
+			const result = this.visit(contexts as any as ParseTree)
+			if (Array.isArray(result)) {
+				return result
+			}
+			return [result as AstBase]
 		}
 		return []
 	}
 
+	/** ======================= utilities ======================= */
+
+	private stackName(): string {
+		if (this.classStack.length > 0) {
+			return (this.classStack[this.classStack.length - 1] as ClassNode).name
+		}
+		return ''
+	}
+
 	/** ======================= parser impplements ======================= */
 
-	//visitLiteral (ctx: parser.LiteralContext) {
+	visitLiteral(ctx: parser.LiteralContext): string {
+		return this.parseText(
+			ctx.IntegerLiteral()
+			, ctx.FloatingPointLiteral()
+			, ctx.BooleanLiteral()
+			, ctx.CharacterLiteral()
+			, ctx.StringLiteral()
+			, ctx.NullLiteral()
+		)
+	}
 	//visitPrimitiveType (ctx: parser.PrimitiveTypeContext) {
-	//visitNumericType (ctx: parser.NumericTypeContext) {
+
+	visitNumericType(ctx: parser.NumericTypeContext) {
+		const typename = this.parseText(ctx.integralType(), ctx.floatingPointType())
+		return new TypeNode(typename)
+	}
+
 	//visitIntegralType (ctx: parser.IntegralTypeContext) {
 	//visitFloatingPointType (ctx: parser.FloatingPointTypeContext) {
 
@@ -88,7 +145,7 @@ export default class JavaVisitor extends AbstractParseTreeVisitor<ExpressionValu
 		}
 		const cit = new TypeNode(ctx.Identifier().text)
 		const args = this.parseMultiple(ctx.typeArguments())
-		cit.typeArguments = args
+		cit.typeArguments = args.map(a => a as TypeArgument)
 		return cit
 	}
 
@@ -159,8 +216,15 @@ export default class JavaVisitor extends AbstractParseTreeVisitor<ExpressionValu
 		return pkg + "." + name
 	}
 	//visitPackageOrTypeName (ctx: parser.PackageOrTypeNameContext) {
-	//visitExpressionName (ctx: parser.ExpressionNameContext) {
-	//visitMethodName (ctx: parser.MethodNameContext) {
+
+	visitExpressionName(ctx: parser.ExpressionNameContext): string {
+		return ctx.text
+	}
+
+	visitMethodName(ctx: parser.MethodNameContext): string {
+		return ctx.Identifier().text
+	}
+
 	//visitAmbiguousName (ctx: parser.AmbiguousNameContext) {
 
 	// compilationUnit
@@ -173,11 +237,8 @@ export default class JavaVisitor extends AbstractParseTreeVisitor<ExpressionValu
 	}
 
 	// packageDeclaration
-	visitPackageDeclaration(ctx: parser.PackageDeclarationContext): AstPackage {
-		return {
-			type: AType.PACKAGE,
-			packageName: this.visit(ctx.packageName())
-		}
+	visitPackageDeclaration(ctx: parser.PackageDeclarationContext): AstBase {
+		return new PackageNode(this.parseText(ctx.packageName()))
 	};
 
 	// visitPackageModifier (ctx: parser.PackageModifierContext) : AstAnnotation[] {
@@ -195,11 +256,8 @@ export default class JavaVisitor extends AbstractParseTreeVisitor<ExpressionValu
 	}
 
 	// singleTypeImportDeclaration
-	visitSingleTypeImportDeclaration(ctx: parser.SingleTypeImportDeclarationContext): AstImport {
-		return {
-			type: AType.IMPORT,
-			name: this.visit(ctx.typeName()) as string,
-		}
+	visitSingleTypeImportDeclaration(ctx: parser.SingleTypeImportDeclarationContext): AstBase {
+		return new ImportNode(this.visit(ctx.typeName()))
 	}
 
 	//visitTypeImportOnDemandDeclaration (ctx: parser.TypeImportOnDemandDeclarationContext) {
@@ -218,13 +276,17 @@ export default class JavaVisitor extends AbstractParseTreeVisitor<ExpressionValu
 			ctx.normalClassDeclaration()
 			, ctx.enumDeclaration()
 		)
-		console.log(result)
 		return result
 	}
 
 	visitNormalClassDeclaration(ctx: parser.NormalClassDeclarationContext): AstClass {
 		const theClass = new Class(this.packageName, ctx.Identifier().text)
+		this.classStack.push(theClass)
 		theClass.children = this.parseMultiple(ctx.classBody()) as AstBase[]
+		this.classStack.pop()
+		if (ctx.comments()) {
+			theClass.comments = this.parseMultiple(ctx.comments())
+		}
 		return theClass
 	}
 	//visitClassModifier (ctx: parser.ClassModifierContext) {
@@ -236,26 +298,34 @@ export default class JavaVisitor extends AbstractParseTreeVisitor<ExpressionValu
 
 	// { classBody... }
 	visitClassBody(ctx: parser.ClassBodyContext): AstBase[] {
-		console.log('visitClassBody')
 		return astAppend([], this.parseMultiple(ctx.classBodyDeclaration()))
 	}
 
-	visitClassBodyDeclaration(ctx: parser.ClassBodyDeclarationContext): AstBase {
-		return this.parseOneOf(
-			ctx.classMemberDeclaration()
-			//, ctx.instanceInitializer()
-			//， ctx.staticInitializer()
-			//， ctx.constructorDeclaration()
-		)
+	// { classBodyDeclaration* }
+	visitClassBodyDeclaration(ctx: parser.ClassBodyDeclarationContext): AstBase[] {
+		if (ctx.classMemberDeclaration()) {
+			return this.parseMultiple(ctx.classMemberDeclaration())
+		}
+		return [
+			this.parseOneOfWithDefault(
+				AST_NODE_INVALID
+				// ,ctx.instanceInitializer()
+				// ,ctx.staticInitializer()
+				// ,ctx.constructorDeclaration()
+			)
+		]
 	}
 
 	visitClassMemberDeclaration(ctx: parser.ClassMemberDeclarationContext): AstBase[] {
-		return new AstNodes()
-			.append(this.parseMultiple(ctx.fieldDeclaration()))
-			// .append(this.parseMultiple(ctx.methodDeclaration()))
-			// .append(this.parseMultiple(ctx.fieldDeclaration()))
-			// .append(this.parseMultiple(ctx.fieldDeclaration()))
-			.array()
+		if (ctx.fieldDeclaration()) {
+			return this.parseMultiple(ctx.fieldDeclaration())
+		}
+
+		return [this.parseOneOf(
+			ctx.methodDeclaration()
+			, ctx.classDeclaration()
+			, ctx.interfaceDeclaration()
+		)]
 	}
 
 	visitFieldDeclaration(ctx: parser.FieldDeclarationContext): AstVariable[] {
@@ -295,7 +365,14 @@ export default class JavaVisitor extends AbstractParseTreeVisitor<ExpressionValu
 	visitUnannType(ctx: parser.UnannTypeContext): AstBase {
 		return this.parseOneOf(ctx.unannPrimitiveType(), ctx.unannReferenceType())
 	}
-	//visitUnannPrimitiveType (ctx: parser.UnannPrimitiveTypeContext) {
+
+	visitUnannPrimitiveType(ctx: parser.UnannPrimitiveTypeContext) {
+		const boolString = this.parseText(ctx.BOOLEAN())
+		if (boolString) return new TypeNode(boolString)
+
+		return this.parseOneOf(ctx.numericType())
+	}
+
 	visitUnannReferenceType(ctx: parser.UnannReferenceTypeContext): AstBase {
 		return this.parseOneOf(
 			ctx.unannClassOrInterfaceType(),
@@ -311,7 +388,18 @@ export default class JavaVisitor extends AbstractParseTreeVisitor<ExpressionValu
 		)
 	}
 
-	//visitUnannClassType (ctx: parser.UnannClassTypeContext) {
+	visitUnannClassType(ctx: parser.UnannClassTypeContext): AstBase {
+		// Identifier typeArguments?
+		// unannClassOrInterfaceType '.' annotation* Identifier typeArguments?
+		const ctype = new TypeNode(ctx.Identifier().text)
+		if (ctx.unannClassOrInterfaceType()) {
+			//TODO: ctx.unannClassOrInterfaceType
+			ctype.typeArguments = ctx.typeArguments() ? this.parseMultiple(ctx.typeArguments()) as TypeArgument[] : undefined
+		}
+		return ctype
+
+	}
+
 	//visitUnannClassType_lf_unannClassOrInterfaceType (ctx: parser.UnannClassType_lf_unannClassOrInterfaceTypeContext) {
 	visitUnannClassType_lfno_unannClassOrInterfaceType(ctx: parser.UnannClassType_lfno_unannClassOrInterfaceTypeContext): AstBase {
 		let vtype = new TypeNode(ctx.Identifier().text)
@@ -336,21 +424,107 @@ export default class JavaVisitor extends AbstractParseTreeVisitor<ExpressionValu
 	}
 
 	//visitUnannArrayType (ctx: parser.UnannArrayTypeContext) {
-	//visitMethodDeclaration (ctx: parser.MethodDeclarationContext) {
+	visitMethodDeclaration(ctx: parser.MethodDeclarationContext): AstBase {
+		const method = this.parse(ctx.methodHeader()) as MethodNode
+		method.body = this.parseOneOf(ctx.methodBody())
+		if (ctx.comments()) {
+			method.comments = this.parseMultiple(ctx.comments())
+		}
+		return method
+	}
 	//visitMethodModifier (ctx: parser.MethodModifierContext) {
-	//visitMethodHeader (ctx: parser.MethodHeaderContext) {
-	//visitResult (ctx: parser.ResultContext) {
-	//visitMethodDeclarator (ctx: parser.MethodDeclaratorContext) {
-	//visitFormalParameterList (ctx: parser.FormalParameterListContext) {
-	//visitFormalParameters (ctx: parser.FormalParametersContext) {
-	//visitFormalParameter (ctx: parser.FormalParameterContext) {
+	visitMethodHeader(ctx: parser.MethodHeaderContext): AstBase {
+		const rtype = this.parseOneOf(ctx.result())
+		const method = this.parseOneOf(ctx.methodDeclarator()) as MethodNode
+		method.rtype = rtype as TypeNode
+		return method
+	}
+
+	visitResult(ctx: parser.ResultContext): AstBase {
+		if (ctx.VOID()) {
+			return new TypeNode('void')
+		}
+		return this.parseOneOf(ctx.unannType())
+	}
+
+	visitMethodDeclarator(ctx: parser.MethodDeclaratorContext): AstBase {
+		let method = new MethodNode()
+		method.name = ctx.Identifier().text
+		const parameters = this.parseMultiple(ctx.formalParameterList())
+		if (parameters) {
+			method.parameters = parameters
+		}
+		const stackName = this.stackName()
+		if (stackName) {
+			method.isField = true
+			method.parentTypeName = stackName
+		}
+		return method
+	}
+
+	visitFormalParameterList(ctx: parser.FormalParameterListContext): AstBase[] {
+		if (ctx.receiverParameter()) {
+			return this.parseMultiple(ctx.receiverParameter())
+		}
+
+		return new AstNodes()
+			.append(this.parseMultiple(ctx.formalParameters()))
+			.add(this.parseOneOf(ctx.lastFormalParameter()))
+			.array()
+	}
+
+	visitFormalParameters(ctx: parser.FormalParametersContext): AstBase[] {
+		if (ctx.receiverParameter()) {
+			return new AstNodes()
+				.add(this.parseOneOf(ctx.receiverParameter()))
+				.append(this.parseMultiple(ctx.formalParameter()))
+				.array()
+		}
+
+		return this.parseMultiple(ctx.formalParameter())
+	}
+
+	visitFormalParameter(ctx: parser.FormalParameterContext): AstBase {
+		//TODO: VariableModifier
+		const variable = this.parseOneOf(ctx.variableDeclaratorId()) as VariableNode
+		variable.vtype = this.parseOneOf(ctx.unannType())
+		return variable
+	}
+
 	//visitVariableModifier (ctx: parser.VariableModifierContext) {
-	//visitLastFormalParameter (ctx: parser.LastFormalParameterContext) {
-	//visitReceiverParameter (ctx: parser.ReceiverParameterContext) {
+	visitLastFormalParameter(ctx: parser.LastFormalParameterContext): AstBase {
+		if (ctx.variableDeclaratorId()) {
+			//TODO: variableModifier
+			//TODO: annotation
+			const variable = this.parseOneOf(ctx.variableDeclaratorId()) as VariableNode
+			let vtype = this.parseOneOf(ctx.unannType()) as TypeNode
+			vtype.multiple = true
+			variable.vtype = vtype
+			return variable
+		}
+
+		return this.parseOneOf(ctx.formalParameter())
+	}
+
+	visitReceiverParameter(ctx: parser.ReceiverParameterContext): AstBase {
+		//TODO: ctx.annotation
+		const identifier = ctx.Identifier()
+		const variable = new VariableNode(identifier ? identifier.text : '')
+		variable.vtype = this.parseOneOf(ctx.unannType())
+		if (ctx.THIS()) {
+			variable.name += 'THIS'
+		}
+		return variable
+	}
+
 	//visitThrows_ (ctx: parser.Throws_Context) {
 	//visitExceptionTypeList (ctx: parser.ExceptionTypeListContext) {
 	//visitExceptionType (ctx: parser.ExceptionTypeContext) {
-	//visitMethodBody (ctx: parser.MethodBodyContext) {
+
+	visitMethodBody(ctx: parser.MethodBodyContext): AstBase {
+		return this.parseOneOf(ctx.block())
+	}
+
 	//visitInstanceInitializer (ctx: parser.InstanceInitializerContext) {
 	//visitStaticInitializer (ctx: parser.StaticInitializerContext) {
 	//visitConstructorDeclaration (ctx: parser.ConstructorDeclarationContext) {
@@ -401,20 +575,89 @@ export default class JavaVisitor extends AbstractParseTreeVisitor<ExpressionValu
 	//visitSingleElementAnnotation (ctx: parser.SingleElementAnnotationContext) {
 	//visitArrayInitializer (ctx: parser.ArrayInitializerContext) {
 	//visitVariableInitializerList (ctx: parser.VariableInitializerListContext) {
-	//visitBlock (ctx: parser.BlockContext) {
-	//visitBlockStatements (ctx: parser.BlockStatementsContext) {
-	//visitBlockStatement (ctx: parser.BlockStatementContext) {
+
+	visitBlock(ctx: parser.BlockContext): AstBase {
+		const block = new BlockNode()
+		if (ctx.blockStatements()) {
+			block.children = this.parseMultiple(ctx.blockStatements())
+		}
+		block.blockType = BlockType.EMPTY
+		return block
+	}
+
+	visitBlockStatements(ctx: parser.BlockStatementsContext): AstBase[] {
+		return this.parseMultiple(ctx.blockStatement())
+	}
+
+	visitBlockStatement(ctx: parser.BlockStatementContext): AstBase {
+		return this.parseOneOf(
+			// ctx.localVariableDeclarationStatement()
+			ctx.classDeclaration()
+			, ctx.statement()
+		)
+	}
+
 	//visitLocalVariableDeclarationStatement (ctx: parser.LocalVariableDeclarationStatementContext) {
 	//visitLocalVariableDeclaration (ctx: parser.LocalVariableDeclarationContext) {
-	//visitStatement (ctx: parser.StatementContext) {
+	visitStatement(ctx: parser.StatementContext): AstBase {
+		return this.parseOneOf(
+			ctx.statementWithoutTrailingSubstatement()
+			// , ctx.labeledStatement()
+			, ctx.ifThenStatement()
+			// , ctx.ifThenElseStatement()
+			// , ctx.whileStatement()
+			// , ctx.forStatement()
+		)
+	}
+
 	//visitStatementNoShortIf (ctx: parser.StatementNoShortIfContext) {
-	//visitStatementWithoutTrailingSubstatement (ctx: parser.StatementWithoutTrailingSubstatementContext) {
-	//visitEmptyStatement_ (ctx: parser.EmptyStatement_Context) {
+	visitStatementWithoutTrailingSubstatement(ctx: parser.StatementWithoutTrailingSubstatementContext): AstBase {
+		return this.parseOneOf(
+			ctx.block()
+			, ctx.emptyStatement_()
+			, ctx.expressionStatement()
+			// , ctx.assertStatement()
+			// , ctx.switchStatement()
+			// , ctx.doStatement()
+			// , ctx.breakStatement()
+			// , ctx.continueStatement()
+			, ctx.returnStatement()
+			// , ctx.synchronizedStatement()
+			// , ctx.throwStatement()
+			, ctx.tryStatement()
+		)
+	}
+
+	visitEmptyStatement_(ctx: parser.EmptyStatement_Context): AstBase {
+		return new StatementNode(StateType.EMPTY)
+	}
+
 	//visitLabeledStatement (ctx: parser.LabeledStatementContext) {
 	//visitLabeledStatementNoShortIf (ctx: parser.LabeledStatementNoShortIfContext) {
-	//visitExpressionStatement (ctx: parser.ExpressionStatementContext) {
-	//visitStatementExpression (ctx: parser.StatementExpressionContext) {
-	//visitIfThenStatement (ctx: parser.IfThenStatementContext) {
+	visitExpressionStatement(ctx: parser.ExpressionStatementContext): AstBase {
+		const stmt: StatementNode = new StatementNode(StateType.EXPRESSION)
+		stmt.expression = this.parseOneOf(ctx.statementExpression())
+		return stmt
+	}
+
+	visitStatementExpression(ctx: parser.StatementExpressionContext): AstBase {
+		return this.parseOneOf(
+			ctx.assignment()
+			// , ctx.preIncrementExpression()
+			// , ctx.preDecrementExpression()
+			// , ctx.postIncrementExpression()
+			// , ctx.postDecrementExpression()
+			, ctx.methodInvocation()
+			// , ctx.classInstanceCreationExpression()
+		)
+	}
+
+	visitIfThenStatement(ctx: parser.IfThenStatementContext): AstBase {
+		const stmt: StatementNode = new StatementNode(StateType.IF)
+		stmt.expression = this.parseOneOf(ctx.expression())
+		stmt.statement = this.parseOneOf(ctx.statement())
+		return stmt
+	}
 	//visitIfThenElseStatement (ctx: parser.IfThenElseStatementContext) {
 	//visitIfThenElseStatementNoShortIf (ctx: parser.IfThenElseStatementNoShortIfContext) {
 	//visitAssertStatement (ctx: parser.AssertStatementContext) {
@@ -438,43 +681,155 @@ export default class JavaVisitor extends AbstractParseTreeVisitor<ExpressionValu
 	//visitEnhancedForStatementNoShortIf (ctx: parser.EnhancedForStatementNoShortIfContext) {
 	//visitBreakStatement (ctx: parser.BreakStatementContext) {
 	//visitContinueStatement (ctx: parser.ContinueStatementContext) {
-	//visitReturnStatement (ctx: parser.ReturnStatementContext) {
+
+	visitReturnStatement(ctx: parser.ReturnStatementContext) {
+		const stmt: StatementNode = new StatementNode(StateType.RETURN)
+		stmt.expression = this.parseOneOf(ctx.expression())
+		return stmt
+	}
+
 	//visitThrowStatement (ctx: parser.ThrowStatementContext) {
 	//visitSynchronizedStatement (ctx: parser.SynchronizedStatementContext) {
-	//visitTryStatement (ctx: parser.TryStatementContext) {
+
+	visitTryStatement(ctx: parser.TryStatementContext): AstBase {
+		const stmt: StatementNode = new StatementNode(StateType.TRY)
+		stmt.block = this.parse(ctx.block())
+		stmt.catches = this.parseMultiple(ctx.catches())
+		return stmt
+	}
+
 	//visitCatches (ctx: parser.CatchesContext) {
-	//visitCatchClause (ctx: parser.CatchClauseContext) {
-	//visitCatchFormalParameter (ctx: parser.CatchFormalParameterContext) {
-	//visitCatchType (ctx: parser.CatchTypeContext) {
+	visitCatchClause(ctx: parser.CatchClauseContext) {
+		const stmt: StatementNode = new StatementNode(StateType.CATCH)
+		stmt.catchParameter = this.parse(ctx.catchFormalParameter())
+		stmt.block = this.parse(ctx.block())
+		return stmt
+	}
+
+	visitCatchFormalParameter(ctx: parser.CatchFormalParameterContext): AstBase {
+		const varialbe = this.parseOneOf(ctx.variableDeclaratorId()) as VariableNode
+		const vtype = this.parseOneOf(ctx.catchType())
+		varialbe.vtype = vtype
+		return varialbe
+	}
+
+	visitCatchType(ctx: parser.CatchTypeContext) {
+		// unannClassType ('|' classType)*
+
+		//TODO: ctx.classType()
+		return this.parse(ctx.unannClassType())
+	}
+
 	//visitFinally_ (ctx: parser.Finally_Context) {
 	//visitTryWithResourcesStatement (ctx: parser.TryWithResourcesStatementContext) {
 	//visitResourceSpecification (ctx: parser.ResourceSpecificationContext) {
 	//visitResourceList (ctx: parser.ResourceListContext) {
 	//visitResource (ctx: parser.ResourceContext) {
-	//visitPrimary (ctx: parser.PrimaryContext) {
-	//visitPrimaryNoNewArray (ctx: parser.PrimaryNoNewArrayContext) {
+	visitPrimary(ctx: parser.PrimaryContext): string {
+		console.log('visitPrimary')
+
+		this.parseMultiple(ctx.primaryNoNewArray_lf_primary())
+
+		return this.parseText(
+			ctx.primaryNoNewArray_lfno_primary()
+			, ctx.arrayCreationExpression()
+		)
+	}
+
+	visitPrimaryNoNewArray(ctx: parser.PrimaryNoNewArrayContext): string {
+		console.log('visitPrimaryNoNewArray')
+		// : literal
+		// | typeName ('[' ']')* '.' 'class'
+		// | unannPrimitiveType ('[' ']')* '.' 'class'
+		// | 'void' '.' 'class'
+		// | 'this'
+		// | typeName '.' 'this'
+		// | '(' expression ')'
+		// | classInstanceCreationExpression_lfno_primary
+		// | fieldAccess_lfno_primary
+		// | arrayAccess_lfno_primary
+		// | methodInvocation_lfno_primary
+		// | methodReference_lfno_primary
+		return ctx.text
+	}
+
 	//visitPrimaryNoNewArray_lf_arrayAccess (ctx: parser.PrimaryNoNewArray_lf_arrayAccessContext) {
 	//visitPrimaryNoNewArray_lfno_arrayAccess (ctx: parser.PrimaryNoNewArray_lfno_arrayAccessContext) {
 	//visitPrimaryNoNewArray_lf_primary (ctx: parser.PrimaryNoNewArray_lf_primaryContext) {
 	//visitPrimaryNoNewArray_lf_primary_lf_arrayAccess_lf_primary (ctx: parser.PrimaryNoNewArray_lf_primary_lf_arrayAccess_lf_primaryContext) {
 	//visitPrimaryNoNewArray_lf_primary_lfno_arrayAccess_lf_primary (ctx: parser.PrimaryNoNewArray_lf_primary_lfno_arrayAccess_lf_primaryContext) {
-	//visitPrimaryNoNewArray_lfno_primary (ctx: parser.PrimaryNoNewArray_lfno_primaryContext) {
+
+	visitPrimaryNoNewArray_lfno_primary(ctx: parser.PrimaryNoNewArray_lfno_primaryContext): string {
+		// : literal
+		// | typeName ('[' ']')* '.' 'class'
+		// | unannPrimitiveType ('[' ']')* '.' 'class'
+		// | 'void' '.' 'class'
+		// | 'this'
+		// | typeName '.' 'this'
+		// | '(' expression ')'
+		// | classInstanceCreationExpression_lfno_primary
+		// | fieldAccess_lfno_primary
+		// | arrayAccess_lfno_primary
+		// | methodInvocation_lfno_primary
+		// | methodReference_lfno_primary
+		return ctx.text
+	}
+
 	//visitPrimaryNoNewArray_lfno_primary_lf_arrayAccess_lfno_primary (ctx: parser.PrimaryNoNewArray_lfno_primary_lf_arrayAccess_lfno_primaryContext) {
 	//visitPrimaryNoNewArray_lfno_primary_lfno_arrayAccess_lfno_primary (ctx: parser.PrimaryNoNewArray_lfno_primary_lfno_arrayAccess_lfno_primaryContext) {
 	//visitClassInstanceCreationExpression (ctx: parser.ClassInstanceCreationExpressionContext) {
 	//visitClassInstanceCreationExpression_lf_primary (ctx: parser.ClassInstanceCreationExpression_lf_primaryContext) {
 	//visitClassInstanceCreationExpression_lfno_primary (ctx: parser.ClassInstanceCreationExpression_lfno_primaryContext) {
 	//visitTypeArgumentsOrDiamond (ctx: parser.TypeArgumentsOrDiamondContext) {
-	//visitFieldAccess (ctx: parser.FieldAccessContext) {
+
+	visitFieldAccess(ctx: parser.FieldAccessContext): AstBase {
+		const field = new ExpressionFieldAccess(ctx.Identifier().text)
+		if (ctx.primary()) {
+			field.prefix = this.parseText(ctx.primary())
+		}
+		if (ctx.typeName()) {
+			field.prefix = this.parseText(ctx.typeName())
+		}
+		return field
+	}
+
 	//visitFieldAccess_lf_primary (ctx: parser.FieldAccess_lf_primaryContext) {
 	//visitFieldAccess_lfno_primary (ctx: parser.FieldAccess_lfno_primaryContext) {
 	//visitArrayAccess (ctx: parser.ArrayAccessContext) {
 	//visitArrayAccess_lf_primary (ctx: parser.ArrayAccess_lf_primaryContext) {
 	//visitArrayAccess_lfno_primary (ctx: parser.ArrayAccess_lfno_primaryContext) {
-	//visitMethodInvocation (ctx: parser.MethodInvocationContext) {
+	visitMethodInvocation(ctx: parser.MethodInvocationContext): AstBase {
+		const method: StatementNode = new StatementNode(StateType.METHOD_INVOCATION)
+		method.arguments = this.parseMultiple(ctx.argumentList())
+
+		const invocation: InvocationNode = new InvocationNode()
+		method.invocation = invocation
+		if (ctx.methodName()) {
+			invocation.name = this.parseText(ctx.methodName())
+		} else {
+			invocation.name = ctx.Identifier()?.text ?? ''
+		}
+
+		//TODO: ctx.super()
+		const typename = this.parseText(ctx.typeName(), ctx.expressionName(), ctx.primary())
+		const ttype = new TypeNode(typename)
+		invocation.ttype = ttype
+
+		const tArgs = this.parseMultiple(ctx.typeArguments()) as TypeArgument[]
+		if (tArgs.length) {
+			ttype.typeArguments = tArgs
+			ttype.isGeneric = true
+		}
+
+		return method
+	}
+
 	//visitMethodInvocation_lf_primary (ctx: parser.MethodInvocation_lf_primaryContext) {
 	//visitMethodInvocation_lfno_primary (ctx: parser.MethodInvocation_lfno_primaryContext) {
-	//visitArgumentList (ctx: parser.ArgumentListContext) {
+	visitArgumentList(ctx: parser.ArgumentListContext): AstBase[] {
+		return this.parseMultiple(ctx.expression())
+	}
+
 	//visitMethodReference (ctx: parser.MethodReferenceContext) {
 	//visitMethodReference_lf_primary (ctx: parser.MethodReference_lf_primaryContext) {
 	//visitMethodReference_lfno_primary (ctx: parser.MethodReference_lfno_primaryContext) {
@@ -482,15 +837,64 @@ export default class JavaVisitor extends AbstractParseTreeVisitor<ExpressionValu
 	//visitDimExprs (ctx: parser.DimExprsContext) {
 	//visitDimExpr (ctx: parser.DimExprContext) {
 	//visitConstantExpression (ctx: parser.ConstantExpressionContext) {
-	//visitExpression (ctx: parser.ExpressionContext) {
+
+	visitExpression(ctx: parser.ExpressionContext) {
+		const expression = new ExpressionNode()
+		expression.expression = ctx.text
+		return expression
+	}
+
 	//visitLambdaExpression (ctx: parser.LambdaExpressionContext) {
 	//visitLambdaParameters (ctx: parser.LambdaParametersContext) {
 	//visitInferredFormalParameterList (ctx: parser.InferredFormalParameterListContext) {
 	//visitLambdaBody (ctx: parser.LambdaBodyContext) {
 	//visitAssignmentExpression (ctx: parser.AssignmentExpressionContext) {
-	//visitAssignment (ctx: parser.AssignmentContext) {
-	//visitLeftHandSide (ctx: parser.LeftHandSideContext) {
-	//visitAssignmentOperator (ctx: parser.AssignmentOperatorContext) {
+
+	visitAssignment(ctx: parser.AssignmentContext): AstBase {
+		// leftHandSide assignmentOperator expression
+		const assign = new ExpressionAssignNode()
+		assign.left = this.parseOneOf(ctx.leftHandSide())
+		assign.operator = this.visit(ctx.assignmentOperator()) as string
+		assign.right = this.parseOneOf(ctx.expression())
+		return assign
+	}
+
+	visitLeftHandSide(ctx: parser.LeftHandSideContext): AstBase {
+		return this.parseOneOf(
+			ctx.expressionName()
+			, ctx.fieldAccess()
+			, ctx.arrayAccess()
+		)
+	}
+
+	visitAssignmentOperator(ctx: parser.AssignmentOperatorContext): string {
+		const ASSIGN = ctx.ASSIGN()
+		const MUL_ASSIGN = ctx.MUL_ASSIGN()
+		const DIV_ASSIGN = ctx.DIV_ASSIGN()
+		const MOD_ASSIGN = ctx.MOD_ASSIGN()
+		const ADD_ASSIGN = ctx.ADD_ASSIGN()
+		const SUB_ASSIGN = ctx.SUB_ASSIGN()
+		const LSHIFT_ASSIGN = ctx.LSHIFT_ASSIGN()
+		const RSHIFT_ASSIGN = ctx.RSHIFT_ASSIGN()
+		const URSHIFT_ASSIGN = ctx.URSHIFT_ASSIGN()
+		const AND_ASSIGN = ctx.AND_ASSIGN()
+		const XOR_ASSIGN = ctx.XOR_ASSIGN()
+		const OR_ASSIGN = ctx.OR_ASSIGN()
+
+		return (ASSIGN && ASSIGN.text) ||
+			(MUL_ASSIGN && MUL_ASSIGN.text) ||
+			(DIV_ASSIGN && DIV_ASSIGN.text) ||
+			(MOD_ASSIGN && MOD_ASSIGN.text) ||
+			(ADD_ASSIGN && ADD_ASSIGN.text) ||
+			(SUB_ASSIGN && SUB_ASSIGN.text) ||
+			(LSHIFT_ASSIGN && LSHIFT_ASSIGN.text) ||
+			(RSHIFT_ASSIGN && RSHIFT_ASSIGN.text) ||
+			(URSHIFT_ASSIGN && URSHIFT_ASSIGN.text) ||
+			(AND_ASSIGN && AND_ASSIGN.text) ||
+			(XOR_ASSIGN && XOR_ASSIGN.text) ||
+			(OR_ASSIGN && OR_ASSIGN.text) ||
+			''
+	}
 	//visitConditionalExpression (ctx: parser.ConditionalExpressionContext) {
 	//visitConditionalOrExpression (ctx: parser.ConditionalOrExpressionContext) {
 	//visitConditionalAndExpression (ctx: parser.ConditionalAndExpressionContext) {
@@ -512,4 +916,16 @@ export default class JavaVisitor extends AbstractParseTreeVisitor<ExpressionValu
 	//visitPostDecrementExpression (ctx: parser.PostDecrementExpressionContext) {
 	//visitPostDecrementExpression_lf_postfixExpression (ctx: parser.PostDecrementExpression_lf_postfixExpressionContext) {
 	//visitCastExpression (ctx: parser.CastExpressionContext) {
+
+	visitComments(ctx: parser.CommentsContext): AstBase[] {
+		let nodes = new AstNodes()
+		let comments = ctx.COMMENT()
+		let line_comments = ctx.LINE_COMMENT()
+
+		comments && nodes.append(comments.map((c: TerminalNode) => new CommentNode(c.text)))
+		line_comments && nodes.append(line_comments.map((c: TerminalNode) => new CommentNode(c.text)))
+
+		// this.comments = nodes.array()
+		return nodes.array()
+	}
 }

@@ -239,6 +239,7 @@ import { PostIncrementExpression_lf_postfixExpressionContext } from "./Java8Pars
 import { PostDecrementExpressionContext } from "./Java8Parser";
 import { PostDecrementExpression_lf_postfixExpressionContext } from "./Java8Parser";
 import { CastExpressionContext } from "./Java8Parser";
+import { CommentsContext } from "./Java8Parser";
 
 
 /**
@@ -1900,5 +1901,12 @@ export interface Java8ParserVisitor<Result> extends ParseTreeVisitor<Result> {
 	 * @return the visitor result
 	 */
 	visitCastExpression?: (ctx: CastExpressionContext) => Result;
+
+	/**
+	 * Visit a parse tree produced by `Java8Parser.comments`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitComments?: (ctx: CommentsContext) => Result;
 }
 
