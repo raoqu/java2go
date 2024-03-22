@@ -7,7 +7,7 @@ export default class ExpressionFieldAccess extends ExpressionNode {
     prefix?: string
 
     constructor(name: string) {
-        super()
+        super(ExpressionType.FIELD_ACCESS)
         this.expressionType = ExpressionType.FIELD_ACCESS
         this.name = name
     }

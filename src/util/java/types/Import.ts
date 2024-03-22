@@ -10,7 +10,7 @@ export default class ImportNode extends BaseNode {
         this.packageName = pkg
     }
 
-    convert(): string {
-        return '// import "' + C.dotPrefix(this.packageName) + '" // ' + C.dotSuffix(this.packageName)
+    convert(): string[] {
+        return ['// import "' + C.dotPrefix(this.packageName) + '" // ' + C.dotSuffix(this.packageName)]
     }
 }

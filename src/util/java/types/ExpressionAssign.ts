@@ -4,14 +4,13 @@ import ExpressionNode, { ExpressionType } from "./Expression";
 import { C, L } from "@/converter/GoConverter";
 
 export default class ExpressionAssignNode extends ExpressionNode {
-    expressionType: ExpressionType = ExpressionType.ASSIGNMENT
     left: AstBase = AST_NODE_INVALID
     operator: string = ''
     right: AstBase = AST_NODE_INVALID
     // convert?: () => string = this.convertAssign
 
     constructor() {
-        super()
+        super(ExpressionType.ASSIGNMENT)
     }
 
     public convert(): string[] {

@@ -2,16 +2,19 @@ import { AType } from "../AstTypes";
 import BaseNode from "./BaseNode";
 
 export enum ExpressionType {
+    DEFAULT,
     ASSIGNMENT = 0,
     FIELD_ACCESS = 1,
+    ARRAY_INITIALIZER,
 }
 
 export default class ExpressionNode extends BaseNode {
-    expressionType?: ExpressionType
+    expressionType: ExpressionType = ExpressionType.DEFAULT
     expression?: string
 
-    constructor() {
+    constructor(etype: ExpressionType) {
         super(AType.EXPRESSION)
+        this.expressionType = etype
     }
 
     convert(): string[] {
@@ -19,6 +22,7 @@ export default class ExpressionNode extends BaseNode {
     }
 
     toString(): string {
+        // console.log('EXPRESSION:', this.expression||'')
         return this.expression || ''
     }
 }

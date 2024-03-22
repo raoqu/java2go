@@ -2,6 +2,7 @@ import { C, L } from "@/converter/GoConverter";
 import { AType, AstBase, AstClass } from "../AstTypes";
 import CommentNode from "./Comment";
 import BaseNode from "./BaseNode";
+import AnnotationNode from "./Annotation";
 
 export default class ClassNode implements AstClass {
     type: string = AType.CLASS
@@ -9,6 +10,9 @@ export default class ClassNode implements AstClass {
     name: string = ''
     children?: AstBase[]
     comments?: AstBase[]
+    annotations?: AnnotationNode[]
+    prefixes?: string[]
+    superInterfaces?: string[]
 
     constructor(packageName: string | undefined, name: string) {
         this.packageName = packageName
@@ -18,7 +22,9 @@ export default class ClassNode implements AstClass {
     convert(): string[] {
         return L(''
             , ... (this.comments ? C.comments(this.comments as CommentNode[]) : [])
+            , ...C.prefix(C.convert(this.annotations), '// ')
             , 'type ' + this.name + ' struct {'
+            , ...C.indent(C.postfix(this.superInterfaces || [], ' // interface'))
             , ...this.classBody()
             , '}'
             , ...C.popBuffered()
@@ -30,7 +36,7 @@ export default class ClassNode implements AstClass {
 
         if (this.children) {
             const arr = this.children.map(node => classBodyParse(node)).filter(a => a.length > 0)
-            lines = lines.concat(C.indent(C.Concat(arr)))
+            lines = lines.concat(C.indent(C.join(...arr)))
         }
 
         return lines
@@ -39,5 +45,8 @@ export default class ClassNode implements AstClass {
 
 function classBodyParse(ast: AstBase): string[] {
     const node = ast as BaseNode
+    if (!node.convert) {
+        console.log(ast)
+    }
     return node.convert() as string[]
 }

@@ -14,6 +14,8 @@ export default class MethodNode extends BaseNode {
     body?: AstBase
     comments?: AstBase[]
     parentTypeName?: string
+    annotations?: AstBase[]
+    prefixes?: string[]
 
     constructor() {
         super(AType.METHOD)
@@ -29,9 +31,10 @@ export default class MethodNode extends BaseNode {
 
     convertMethod(): string[] {
         const comments = C.comments(this.comments as CommentNode[])
+        const annotations = C.prefix(C.convert(this.annotations), '// ')
         const declare = [this.methodDeclare()]
         const body = C.convert(this.body)
-        return C.Concat([comments, declare, body])
+        return C.join(comments, annotations, declare, body)
     }
 
     methodDeclare(): string {

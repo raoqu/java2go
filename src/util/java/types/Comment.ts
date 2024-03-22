@@ -8,4 +8,8 @@ export default class CommentNode implements AstBase {
     constructor(text: string) {
         this.text = text
     }
+
+    convert(): string[] {
+        return this.text.split('\n')
+    }
 }

@@ -18,6 +18,8 @@ export enum AType {
   EXPRESSION = 'expression',
   VALUE = 'value',
   INVOCATION = '_invocation',
+  VALUE_PAIR = '_value_pair',
+  FOR = 'for',
 }
 
 export type ExpressionValue =

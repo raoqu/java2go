@@ -27,7 +27,7 @@ const GLOBAL_CONVERTER_CONTEXT: ConverterContext = {
 
 let NOT_IN_USE_ARR: string[] = []
 const DEFAULT_INDENT: string = '  '
-const _INLINE_JOIN = '{'
+const _INLINE_JOINS = ['{', 'else', ')']
 
 export default class GoConverter {
     private indents: string = ''
@@ -128,11 +128,11 @@ export default class GoConverter {
         return arr.map(s => DEFAULT_INDENT + s)
     }
 
-    Concat(arrArray: string[][]): string[] {
+    innerConcat(arrArray: string[][]): string[] {
         let lines: string[] = []
         for (let i = 0; i < arrArray.length; i++) {
             const arr = arrArray[i]
-            if (lines.length && arr.length && (arr[0] == _INLINE_JOIN)) {
+            if (lines.length && arr.length && _INLINE_JOINS.includes(arr[0])) {
                 lines[lines.length - 1] += (' ' + arr[0])
                 lines = lines.concat(arr.slice(1))
                 continue
@@ -143,13 +143,13 @@ export default class GoConverter {
         return lines
     }
 
-    Concat2(...arrArray: string[][]): string[] {
-        return this.Concat(arrArray)
+    join(...arrArray: string[][]): string[] {
+        return this.innerConcat(arrArray)
     }
 
     convert(obj: AstBase | AstBase[] | undefined): string[] {
         if (Array.isArray(obj)) {
-            return this.Concat(
+            return this.innerConcat(
                 (obj as AstBase[]).map(item => this.convert(item))
             )
         }
@@ -158,7 +158,10 @@ export default class GoConverter {
         return node?.convert ? node.convert() : []
     }
 
-    toText(obj: AstBase): string {
+    toText(obj: AstBase | undefined): string {
+        if (obj === undefined) {
+            return ''
+        }
         if (Array.isArray(obj)) {
             return (obj as AstBase[]).map(item => this.convert(item)).join('\n')
         }
@@ -169,6 +172,14 @@ export default class GoConverter {
             return result.join('\n')
         }
         return result || ''
+    }
+
+    prefix(arr: string[], prefix: string): string[] {
+        return arr.map(s => prefix + s)
+    }
+
+    postfix(arr: string[], postfix: string): string[] {
+        return arr.map(s => s + postfix)
     }
 }
 

@@ -334,7 +334,7 @@ classMemberDeclaration
     ;
 
 fieldDeclaration
-    : fieldModifier* unannType variableDeclaratorList ';'
+    : comments? fieldModifier* unannType variableDeclaratorList ';'
     ;
 
 fieldModifier
@@ -734,7 +734,7 @@ localVariableDeclarationStatement
     ;
 
 localVariableDeclaration
-    : variableModifier* unannType variableDeclaratorList
+    : comments? variableModifier* unannType variableDeclaratorList
     ;
 
 statement
@@ -1205,7 +1205,7 @@ leftHandSide
 assignmentOperator
     : '='
     | '*='
-    | '/='x
+    | '/='
     | '%='
     | '+='
     | '-='

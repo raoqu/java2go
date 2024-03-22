@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button, Checkbox, Space } from 'antd'
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import Editor, { Monaco, useMonaco, DiffEditor, MonacoDiffEditor } from '@monaco-editor/react';
+import Editor, { loader as MonacoLoader, Monaco, useMonaco, DiffEditor, MonacoDiffEditor } from '@monaco-editor/react';
 import Java2Go from '@/util/java2go';
 import WSS, { WSProcessor, WSMessage } from './util/webscoket';
 import { DEFAULT_JAVA } from '@/converter/DefaultJava'
 
 import './App.css'
 import { initParserConfig } from './converter/ConverterConfig';
+
+// MonacoLoader.config()
 
 function App() {
   const monaco = useMonaco();

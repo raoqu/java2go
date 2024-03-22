@@ -2,6 +2,7 @@ import { C, L } from "@/converter/GoConverter";
 import { AType, AstBase, AstVariable } from "../AstTypes";
 import BaseNode from "./BaseNode";
 import TypeNode from "./Type";
+import CommentNode from "./Comment";
 
 export default class VariableNode extends BaseNode {
     name = ''
@@ -9,6 +10,9 @@ export default class VariableNode extends BaseNode {
     isField = false
     vtype?: AstBase
     isArray = false
+    declare = false
+    initial?: AstBase
+    comments?: AstBase[]
 
     constructor(name: string) {
         super(AType.VARIABLE)
@@ -16,18 +20,34 @@ export default class VariableNode extends BaseNode {
     }
 
     convert(): string[] {
-        return L(...[this.variableDeclare(this)])
+        if (this.isField) {
+            const comments = C.comments(this.comments as CommentNode[])
+            // const annotations = C.prefix(C.convert(this.annotations), '// ')
+            return C.join(comments, [this.fieldString()])
+        }
+        if (this.declare) return this.declares()
+
+        return [this.vairableString(this)]
     }
 
-    private variableDeclare(node: AstBase | undefined, inStatement: boolean = false): string {
+    public vairableString(node: AstBase | undefined): string {
         if (!node) return ''
 
-        const variable = node as VariableNode
-        const vtype = variable.vtype ? variable.vtype as TypeNode : new TypeNode('UNKNOWN')
-        const typename = C.typename(vtype)
-        if (variable.isField) {
-            return variable.name + ' *' + typename
+        return this.name + ' ' + C.typename((node as VariableNode).vtype)
+    }
+
+    public fieldString(): string {
+        return this.name + ' *' + C.typename(this.vtype)
+    }
+
+    public declares(): string[] {
+        let declare = ''
+        const comments = C.comments(this.comments as CommentNode[])
+        if (this.initial) {
+            declare = this.name + ' := ' + C.toText(this.initial)
+        } else {
+            declare = 'var ' + this.name + ' ' + C.typename(this.vtype)
         }
-        return inStatement ? 'var ' : '' + variable.name + ' : ' + typename
+        return C.join(comments, [declare])
     }
 }
