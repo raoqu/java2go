@@ -19,6 +19,7 @@ export default class ForNode extends BaseNode {
         var prefix: string
         if (this.range) {
             const v = this.variable as VariableNode
+            C.context().add(v)
             prefix = 'for _, ' + v.name + ' := ' + this.expression
         } else {
             prefix = 'for ' + (this.init || '') + '; ' + C.toText(this.expression) + '; '

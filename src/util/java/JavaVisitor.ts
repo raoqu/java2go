@@ -20,10 +20,8 @@ import ExpressionFieldAccess from './types/ExpressionFieldAccess';
 import PackageNode from './types/Package';
 import ImportNode from './types/Import';
 import InvocationNode from './Invocation';
-import AnnnotationNode from './types/Annotation';
 import AnnotationNode from './types/Annotation';
 import ValuePair from './types/ValuePair';
-import BaseNode from './types/BaseNode';
 import ExpressionArrayInitializer from './types/ExpressionArrayInitalizer';
 import ForNode from './types/For';
 
@@ -95,6 +93,16 @@ export default class JavaVisitor extends AbstractParseTreeVisitor<ExpressionValu
 		return []
 	}
 
+	// comments
+	private parseComments(obj: any, context: parser.CommentsContext | undefined) {
+		if (context) {
+			const comments = this.parseMultiple(context) as any[]
+			if (comments?.length) {
+				obj.comments = comments
+			}
+		}
+	}
+
 	// annotations & prefixes fields REQUIRED
 	private parseModifiers(obj: any, contexts: ParseTree[] | undefined) {
 		const modifiers = this.parseMultiple(contexts) as any[]
@@ -103,8 +111,10 @@ export default class JavaVisitor extends AbstractParseTreeVisitor<ExpressionValu
 		for (let m of modifiers) {
 			if (m.name) {
 				annotations.push(m as AnnotationNode)
-			} else {
+				console.log(m.name)
+			} else if (m) {
 				prefixes.push(m as string)
+				console.log(m as string)
 			}
 		}
 		annotations.length && (obj.annotations = annotations)
@@ -381,19 +391,35 @@ export default class JavaVisitor extends AbstractParseTreeVisitor<ExpressionValu
 		const vars = this.parse(ctx.variableDeclaratorList())
 		const variables: VariableNode[] = vars ? vars as any : []
 		const vtype = this.parse(ctx.unannType())
-		// ctx.fieldModifier()
-		const comments = this.parseMultiple(ctx.comments())
+
+		this.parseComments(variables[0], ctx.comments())
+		this.parseModifiers(variables[0], ctx.fieldModifier())
 		variables.map(v => {
 			v.isField = true
 			v.vtype = vtype
 			return v
 		})
-		variables[0].comments = comments
+		for (let i = 1; i < variables.length; i++) {
+			variables[i].prefixes = variables[0].prefixes
+			variables[i].annotations = variables[0].annotations
+		}
 		return variables
 	}
 
-	visitFieldModifier(ctx: parser.FieldModifierContext): AstBase {
-		return AST_NODE_INVALID
+	visitFieldModifier(ctx: parser.FieldModifierContext): any {
+		if (ctx.annotation()) {
+			return this.parseOneOf(ctx.annotation())
+		}
+
+		return this.parseText(
+			ctx.PUBLIC()
+			, ctx.PROTECTED()
+			, ctx.PRIVATE()
+			, ctx.STATIC()
+			, ctx.FINAL()
+			, ctx.TRANSIENT()
+			, ctx.VOLATILE()
+		)
 	}
 
 	visitVariableDeclaratorList(ctx: parser.VariableDeclaratorListContext): AstVariable[] {

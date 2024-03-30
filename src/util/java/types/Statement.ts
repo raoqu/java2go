@@ -40,7 +40,7 @@ export default class StatementNode extends BaseNode {
 
     convert(): string[] {
         const lines = this.innerConvert()
-        if ( this.comments ) {
+        if (this.comments) {
             return C.join(C.convert(this.comments), lines)
         }
         return lines
@@ -105,6 +105,25 @@ export default class StatementNode extends BaseNode {
 
     invocationState(): string[] {
         const invocation = C.convert(this.invocation).join('')
+        const arr = invocation.split('.')
+        if (arr.length == 2) {
+            const varName = C.nameConvert(arr[0])
+            const typeName = C.context().getTypeName(varName)
+            if (arr[1] == 'put' && typeName == 'Map') {
+                if ((this.arguments?.length ?? 0) == 2) {
+                    return [varName + '[' + C.toText(this.arguments?.[0] ?? undefined) + '] = ' + C.toText(this.arguments?.[1] ?? undefined)]
+                }
+                console.log('INVOCATION:', varName, typeName)
+            } else if (arr[1] == 'get' && typeName == 'Map') {
+                if ((this.arguments?.length ?? 0) == 1) {
+                    return [varName + '[' + C.toText(this.arguments?.[0] ?? undefined) + ']']
+                }
+            } else if (arr[1] == 'add' && typeName == 'List') {
+                if ((this.arguments?.length ?? 0) == 1) {
+                    return [varName + ' = append(' + varName + ', ' + C.toText(this.arguments?.[0] ?? undefined) + ')']
+                }
+            }
+        }
         const args = C.convert(this.arguments).join(', ')
         return [invocation + '(' + args + ')']
     }

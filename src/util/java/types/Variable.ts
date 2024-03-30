@@ -13,17 +13,19 @@ export default class VariableNode extends BaseNode {
     declare = false
     initial?: AstBase
     comments?: AstBase[]
+    annotations?: AstBase[]
+    prefixes?: string[]
 
     constructor(name: string) {
         super(AType.VARIABLE)
-        this.name = name
+        this.name = C.nameConvert(name)
     }
 
     convert(): string[] {
         if (this.isField) {
             const comments = C.comments(this.comments as CommentNode[])
-            // const annotations = C.prefix(C.convert(this.annotations), '// ')
-            return C.join(comments, [this.fieldString()])
+            const annotations = C.prefix(C.convert(this.annotations), '// ')
+            return C.join(comments, annotations, [this.fieldString()])
         }
         if (this.declare) return this.declares()
 
@@ -37,10 +39,13 @@ export default class VariableNode extends BaseNode {
     }
 
     public fieldString(): string {
-        return this.name + ' *' + C.typename(this.vtype)
+        const name = this.isPublic() ? this.capitalize(this.name) : this.name
+        return name + ' *' + C.typename(this.vtype)
     }
 
     public declares(): string[] {
+        C.context().add(this)
+
         let declare = ''
         const comments = C.comments(this.comments as CommentNode[])
         if (this.initial) {

@@ -1,8 +1,8 @@
 import { AType, AstBase } from "@/util/java/AstTypes";
 import TypeNode, { TypeArgument } from "@/util/java/types/Type";
 import { CONVERTER_CONFIG } from '@/converter/ConverterConfig'
-import VariableNode from "@/util/java/types/Variable";
 import CommentNode from "@/util/java/types/Comment";
+import ScopeContext from "./ScopeContext";
 
 const defaultAstNode = {
     type: AType._INVALID
@@ -25,15 +25,15 @@ const GLOBAL_CONVERTER_CONTEXT: ConverterContext = {
     lines: []
 }
 
-let NOT_IN_USE_ARR: string[] = []
 const DEFAULT_INDENT: string = '  '
 const _INLINE_JOINS = ['{', 'else', ')']
 
+
 export default class GoConverter {
-    private indents: string = ''
     private indentLevel: number = 0
     private lines: string[] = []
     private buffered: string[] = []
+    private _context: ScopeContext = new ScopeContext()
 
     constructor() {
     }
@@ -42,20 +42,18 @@ export default class GoConverter {
         return this.indentLevel ?? 0
     }
 
-    addIndent(lvl: number) {
-        this.indentLevel += lvl
-        this.indents = this.indentLevel > 0 ? DEFAULT_INDENT.repeat(this.indentLevel) : ''
-        return this
-    }
-
     enter() {
-        this.addIndent(1)
+        this._context.enter()
         return this
     }
 
     exit() {
-        this.addIndent(-1)
+        this._context.exit()
         return this
+    }
+
+    context(): ScopeContext {
+        return this._context
     }
 
     appendInLine(str: string) {
@@ -180,6 +178,13 @@ export default class GoConverter {
 
     postfix(arr: string[], postfix: string): string[] {
         return arr.map(s => s + postfix)
+    }
+
+    nameConvert(name: string): string {
+        if (name == 'map') {
+            return 'map_'
+        }
+        return name
     }
 }
 
