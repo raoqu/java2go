@@ -45,8 +45,10 @@ export default class ClassNode implements AstClass {
 
 function classBodyParse(ast: AstBase): string[] {
     const node = ast as BaseNode
-    if (!node.convert) {
-        console.log(ast)
+    if (node?.convert) {
+        return node.convert() as string[]
     }
-    return node.convert() as string[]
+
+    console.log(ast)
+    return []
 }
